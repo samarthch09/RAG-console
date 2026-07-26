@@ -45,10 +45,17 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 MAX_UPLOAD_MB = int(os.getenv("MAX_UPLOAD_MB", "25"))
 EMBED_DIM = int(os.getenv("EMBED_DIM", "3072"))
 
+# Production is detected by the presence of Inngest Cloud credentials, which
+# are only set as env vars on the deployed host (e.g. Render). Locally, these
+# are absent, so the client talks to the local `inngest dev` server instead.
+IS_PRODUCTION = bool(os.getenv("INNGEST_SIGNING_KEY"))
+
 inngest_client = inngest.Inngest(
     app_id="rag_app",
     logger=logger,
-    is_production=False,
+    is_production=IS_PRODUCTION,
+    signing_key=os.getenv("INNGEST_SIGNING_KEY"),
+    event_key=os.getenv("INNGEST_EVENT_KEY"),
     serializer=inngest.PydanticSerializer(),
 )
 
@@ -188,11 +195,17 @@ async def _run_and_wait(event_name: str, data: dict, timeout_s: float = 90.0, po
     ids = await inngest_client.send(inngest.Event(name=event_name, data=data))
     event_id = ids[0]
 
-    base = os.getenv("INNGEST_API_BASE", "http://127.0.0.1:8288/v1")
+    if IS_PRODUCTION:
+        base = os.getenv("INNGEST_API_BASE", "https://api.inngest.com/v1")
+        headers = {"Authorization": f"Bearer {os.getenv('INNGEST_SIGNING_KEY')}"}
+    else:
+        base = os.getenv("INNGEST_API_BASE", "http://127.0.0.1:8288/v1")
+        headers = {}
+
     start = time.time()
     last_status = None
 
-    async with httpx.AsyncClient(timeout=10.0) as http:
+    async with httpx.AsyncClient(timeout=10.0, headers=headers) as http:
         while True:
             resp = await http.get(f"{base}/events/{event_id}/runs")
             resp.raise_for_status()
