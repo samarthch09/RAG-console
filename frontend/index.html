@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Index · RAG Console</title>
+<style>
+  :root{
+    --ink:#0d1117;
+    --panel:#12181f;
+    --panel-2:#161d26;
+    --line:#232b35;
+    --text:#dbe2ea;
+    --muted:#7c8797;
+    --amber:#e8a33d;
+    --amber-dim:#8a662a;
+    --green:#5fbf82;
+    --red:#e0685f;
+    --mono: "SFMono-Regular", "JetBrains Mono", Consolas, Menlo, monospace;
+    --serif: "Iowan Old Style", "Georgia", "Times New Roman", serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background:var(--ink);
+    color:var(--text);
+    font-family:var(--mono);
+    font-size:14px;
+    line-height:1.5;
+    background-image:
+      linear-gradient(var(--line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size:64px 64px;
+    background-position:-1px -1px;
+    background-attachment:fixed;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:28px 20px 60px;}
+
+  /* ---------- header ---------- */
+  header{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:26px;flex-wrap:wrap;gap:10px;}
+  .brand{display:flex;align-items:baseline;gap:12px;}
+  .brand .mark{
+    font-family:var(--serif); font-style:italic; font-size:26px; color:var(--amber); letter-spacing:.5px;
+  }
+  .brand .sub{color:var(--muted); font-size:12px; letter-spacing:.08em; text-transform:uppercase;}
+  .status-chip{
+    display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted);
+    border:1px solid var(--line); padding:6px 10px; border-radius:3px; background:var(--panel);
+  }
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--muted);}
+  .dot.up{background:var(--green); box-shadow:0 0 8px var(--green);}
+  .dot.down{background:var(--red); box-shadow:0 0 8px var(--red);}
+
+  /* ---------- layout ---------- */
+  .grid{display:grid; grid-template-columns: 1.1fr 1.6fr; gap:18px;}
+  @media (max-width:860px){ .grid{grid-template-columns:1fr;} }
+
+  .panel{
+    background:var(--panel); border:1px solid var(--line); border-radius:4px; padding:18px;
+  }
+  .panel h2{
+    margin:0 0 14px; font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); font-weight:600;
+  }
+  .panel h2 .n{color:var(--amber-dim); margin-right:6px;}
+
+  /* ---------- drop zone ---------- */
+  .dropzone{
+    border:1px dashed var(--line); border-radius:4px; padding:26px 14px; text-align:center;
+    color:var(--muted); cursor:pointer; transition:border-color .15s, background .15s;
+  }
+  .dropzone.drag{border-color:var(--amber); background:rgba(232,163,61,.06); color:var(--text);}
+  .dropzone strong{color:var(--text); display:block; margin-bottom:4px; font-weight:600;}
+  .dropzone input{display:none;}
+
+  /* ---------- pipeline visualizer (signature element) ---------- */
+  .pipeline{margin-top:18px; display:flex; flex-direction:column; gap:0;}
+  .stage{
+    display:grid; grid-template-columns:20px 1fr auto; align-items:center; gap:10px;
+    padding:9px 2px; border-left:1px solid var(--line); margin-left:9px; padding-left:16px; position:relative;
+  }
+  .stage:last-child{border-left-color:transparent;}
+  .stage .node{
+    position:absolute; left:-5px; top:12px; width:9px; height:9px; border-radius:50%;
+    background:var(--ink); border:1px solid var(--line); transition:all .25s;
+  }
+  .stage.active .node{border-color:var(--amber); background:var(--amber); box-shadow:0 0 10px var(--amber);}
+  .stage.done .node{border-color:var(--green); background:var(--green);}
+  .stage.error .node{border-color:var(--red); background:var(--red);}
+  .stage .label{color:var(--muted); font-size:12.5px;}
+  .stage.active .label, .stage.done .label{color:var(--text);}
+  .stage .meta{font-size:11px; color:var(--muted);}
+  .stage.active .meta{color:var(--amber);}
+
+  /* ---------- log ---------- */
+  .log-list{max-height:220px; overflow-y:auto; font-size:12px; color:var(--muted);}
+  .log-item{display:flex; justify-content:space-between; gap:8px; padding:6px 0; border-bottom:1px solid var(--line);}
+  .log-item:last-child{border-bottom:none;}
+  .log-item .name{color:var(--text);}
+  .log-item .badge{font-size:10px; padding:1px 6px; border-radius:2px; border:1px solid var(--line);}
+  .badge.ok{color:var(--green); border-color:var(--green);}
+  .badge.err{color:var(--red); border-color:var(--red);}
+
+  /* ---------- stats ---------- */
+  .stat-row{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:14px;}
+  .stat{border:1px solid var(--line); border-radius:3px; padding:10px; background:var(--panel-2);}
+  .stat .v{font-family:var(--serif); font-size:22px; color:var(--amber);}
+  .stat .l{font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; margin-top:2px;}
+
+  /* ---------- chat ---------- */
+  .chat{display:flex; flex-direction:column; height:560px;}
+  .chat-scroll{flex:1; overflow-y:auto; padding-right:4px; margin-bottom:12px;}
+  .msg{margin-bottom:18px;}
+  .msg .role{font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); margin-bottom:5px;}
+  .msg.user .role{color:var(--amber);}
+  .msg .bubble{
+    font-family:var(--serif); font-size:15.5px; line-height:1.55; color:var(--text);
+  }
+  .msg.user .bubble{font-family:var(--mono); font-size:13.5px; color:var(--text);}
+  .sources{margin-top:8px; display:flex; flex-wrap:wrap; gap:6px;}
+  .source-chip{
+    font-size:10.5px; font-family:var(--mono); color:var(--muted); border:1px solid var(--line);
+    border-radius:2px; padding:2px 7px; background:var(--panel-2);
+  }
+  .empty-state{color:var(--muted); font-size:13px; padding:30px 4px; text-align:center;}
+  .empty-state .glyph{font-family:var(--serif); font-style:italic; font-size:28px; color:var(--amber-dim); display:block; margin-bottom:8px;}
+
+  .composer{display:flex; gap:8px; border-top:1px solid var(--line); padding-top:12px;}
+  .composer input{
+    flex:1; background:var(--panel-2); border:1px solid var(--line); border-radius:3px;
+    color:var(--text); padding:11px 12px; font-family:var(--mono); font-size:13px;
+  }
+  .composer input:focus{outline:none; border-color:var(--amber-dim);}
+  .composer button, .primary-btn{
+    background:var(--amber); color:#1b1305; border:none; border-radius:3px; padding:0 18px;
+    font-family:var(--mono); font-weight:700; font-size:12.5px; letter-spacing:.03em; cursor:pointer;
+    transition:filter .15s;
+  }
+  .composer button:hover, .primary-btn:hover{filter:brightness(1.08);}
+  .composer button:disabled{background:var(--amber-dim); cursor:not-allowed;}
+
+  .topk{display:flex; align-items:center; gap:6px; color:var(--muted); font-size:11px; margin-left:2px;}
+  .topk input{width:44px; background:var(--panel-2); border:1px solid var(--line); color:var(--text); border-radius:2px; padding:3px 5px; font-family:var(--mono);}
+
+  .typing{display:inline-flex; gap:3px; align-items:center;}
+  .typing span{width:5px;height:5px;border-radius:50%;background:var(--amber-dim); animation:blink 1.2s infinite ease-in-out;}
+  .typing span:nth-child(2){animation-delay:.2s;} .typing span:nth-child(3){animation-delay:.4s;}
+  @keyframes blink{0%,80%,100%{opacity:.25} 40%{opacity:1}}
+
+  .toast-wrap{position:fixed; bottom:18px; right:18px; display:flex; flex-direction:column; gap:8px; z-index:50;}
+  .toast{
+    background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--amber);
+    padding:10px 14px; border-radius:3px; font-size:12.5px; max-width:320px; box-shadow:0 6px 20px rgba(0,0,0,.4);
+    animation:slidein .2s ease-out;
+  }
+  .toast.err{border-left-color:var(--red);}
+  .toast.ok{border-left-color:var(--green);}
+  @keyframes slidein{from{transform:translateY(8px); opacity:0;} to{transform:translateY(0); opacity:1;}}
+
+  footer{margin-top:30px; color:var(--muted); font-size:11px; text-align:center;}
+  footer a{color:var(--amber-dim);}
+  ::-webkit-scrollbar{width:8px;} ::-webkit-scrollbar-thumb{background:var(--line); border-radius:4px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <span class="mark">Index</span>
+      <span class="sub">RAG Console · retrieval over your PDFs</span>
+    </div>
+    <div class="status-chip" id="statusChip"><span class="dot" id="statusDot"></span><span id="statusText">checking backend…</span></div>
+  </header>
+
+  <div class="grid">
+    <!-- LEFT: ingestion + pipeline + stats -->
+    <div class="col">
+      <div class="panel">
+        <h2><span class="n">01</span>Ingest a document</h2>
+        <div class="dropzone" id="dropzone">
+          <strong>Drop a PDF here</strong>
+          or click to browse · 25MB max
+          <input type="file" id="fileInput" accept="application/pdf" />
+        </div>
+
+        <div class="pipeline" id="pipeline">
+          <div class="stage" data-stage="upload"><div class="node"></div><div class="label">Upload &amp; validate</div><div class="meta"></div></div>
+          <div class="stage" data-stage="chunk"><div class="node"></div><div class="label">Parse &amp; chunk text</div><div class="meta"></div></div>
+          <div class="stage" data-stage="embed"><div class="node"></div><div class="label">Generate embeddings</div><div class="meta"></div></div>
+          <div class="stage" data-stage="index"><div class="node"></div><div class="label">Write to vector index</div><div class="meta"></div></div>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-top:16px;">
+        <h2><span class="n">02</span>Index status</h2>
+        <div class="stat-row">
+          <div class="stat"><div class="v" id="statChunks">–</div><div class="l">Chunks</div></div>
+          <div class="stat"><div class="v" id="statDocs">–</div><div class="l">Documents</div></div>
+          <div class="stat"><div class="v" id="statDim">–</div><div class="l">Vector dim</div></div>
+        </div>
+        <div class="log-list" id="docList" style="margin-top:14px;"></div>
+      </div>
+    </div>
+
+    <!-- RIGHT: chat -->
+    <div class="panel chat">
+      <h2><span class="n">03</span>Ask a question</h2>
+      <div class="chat-scroll" id="chatScroll">
+        <div class="empty-state" id="emptyState">
+          <span class="glyph">?</span>
+          Ingest a PDF, then ask anything about it.<br/>Answers are generated only from retrieved context, with sources cited.
+        </div>
+      </div>
+      <div class="composer">
+        <div class="topk">k<input type="number" id="topK" value="5" min="1" max="20" /></div>
+        <input type="text" id="questionInput" placeholder="Ask about your indexed documents…" autocomplete="off" />
+        <button id="askBtn">Ask</button>
+      </div>
+    </div>
+  </div>
+
+  <footer>REST API at <code>/api</code> · health, stats, ingest, and query endpoints · built for demo &amp; portfolio use</footer>
+</div>
+
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script>
+const API = "";
+
+function toast(msg, kind="ok"){
+  const el = document.createElement("div");
+  el.className = "toast " + kind;
+  el.textContent = msg;
+  document.getElementById("toastWrap").appendChild(el);
+  setTimeout(()=>el.remove(), 4200);
+}
+
+async function api(path, opts={}){
+  const res = await fetch(API + path, opts);
+  let body;
+  try { body = await res.json(); } catch(e){ body = null; }
+  if(!res.ok){
+    const msg = body?.error?.message || res.statusText || "Request failed";
+    throw new Error(msg);
+  }
+  return body?.data;
+}
+
+/* ---------- health + stats polling ---------- */
+async function refreshHealth(){
+  const dot = document.getElementById("statusDot");
+  const text = document.getElementById("statusText");
+  try{
+    const d = await api("/api/health");
+    dot.className = "dot " + (d.status === "ok" ? "up" : "down");
+    text.textContent = d.status === "ok" ? "backend online · qdrant up" : "degraded · qdrant unreachable";
+  }catch(e){
+    dot.className = "dot down";
+    text.textContent = "backend unreachable";
+  }
+}
+
+async function refreshStats(){
+  try{
+    const d = await api("/api/stats");
+    document.getElementById("statChunks").textContent = d.points_count ?? "0";
+    document.getElementById("statDocs").textContent = (d.sources || []).length;
+    document.getElementById("statDim").textContent = d.dim ?? "–";
+    const list = document.getElementById("docList");
+    list.innerHTML = "";
+    if(!d.sources || d.sources.length === 0){
+      list.innerHTML = '<div style="color:var(--muted); padding:6px 0;">No documents indexed yet.</div>';
+    } else {
+      d.sources.forEach(s=>{
+        const row = document.createElement("div");
+        row.className = "log-item";
+        row.innerHTML = `<span class="name">${escapeHtml(s)}</span><span class="badge ok">indexed</span>`;
+        list.appendChild(row);
+      });
+    }
+  }catch(e){ /* stats endpoint may be briefly unavailable; ignore */ }
+}
+
+function escapeHtml(s){
+  const d = document.createElement("div");
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+/* ---------- pipeline visualizer ---------- */
+const stages = ["upload","chunk","embed","index"];
+function resetPipeline(){
+  stages.forEach(s=>{
+    const el = document.querySelector(`.stage[data-stage="${s}"]`);
+    el.classList.remove("active","done","error");
+    el.querySelector(".meta").textContent = "";
+  });
+}
+function setStage(name, state, meta=""){
+  const el = document.querySelector(`.stage[data-stage="${name}"]`);
+  el.classList.remove("active","done","error");
+  el.classList.add(state);
+  el.querySelector(".meta").textContent = meta;
+}
+async function animateStagesUntilDone(promise){
+  resetPipeline();
+  setStage("upload","active","uploading…");
+  await sleep(250);
+  setStage("upload","done","ok");
+  setStage("chunk","active","splitting into passages…");
+  await sleep(400);
+  setStage("chunk","done","");
+  setStage("embed","active","calling embedding model…");
+  try{
+    const result = await promise;
+    setStage("embed","done","");
+    setStage("index","active","writing vectors…");
+    await sleep(250);
+    setStage("index","done", `${result.ingested ?? ""} chunks`);
+    return result;
+  }catch(e){
+    const active = document.querySelector(".stage.active");
+    if(active) active.classList.add("error");
+    throw e;
+  }
+}
+function sleep(ms){ return new Promise(r=>setTimeout(r, ms)); }
+
+/* ---------- ingestion ---------- */
+const dropzone = document.getElementById("dropzone");
+const fileInput = document.getElementById("fileInput");
+dropzone.addEventListener("click", ()=>fileInput.click());
+["dragenter","dragover"].forEach(ev=>dropzone.addEventListener(ev, e=>{ e.preventDefault(); dropzone.classList.add("drag"); }));
+["dragleave","drop"].forEach(ev=>dropzone.addEventListener(ev, e=>{ e.preventDefault(); dropzone.classList.remove("drag"); }));
+dropzone.addEventListener("drop", e=>{
+  const f = e.dataTransfer.files?.[0];
+  if(f) handleFile(f);
+});
+fileInput.addEventListener("change", ()=>{
+  if(fileInput.files[0]) handleFile(fileInput.files[0]);
+});
+
+async function handleFile(file){
+  if(!file.name.toLowerCase().endsWith(".pdf")){
+    toast("Only PDF files are supported.", "err");
+    return;
+  }
+  const form = new FormData();
+  form.append("file", file);
+
+  const ingestPromise = api("/api/ingest", { method:"POST", body: form });
+  try{
+    const result = await animateStagesUntilDone(ingestPromise);
+    toast(`Indexed "${file.name}" — ${result.ingested} chunks`, "ok");
+    refreshStats();
+  }catch(e){
+    toast("Ingestion failed: " + e.message, "err");
+  }
+}
+
+/* ---------- chat ---------- */
+const chatScroll = document.getElementById("chatScroll");
+const emptyState = document.getElementById("emptyState");
+const questionInput = document.getElementById("questionInput");
+const askBtn = document.getElementById("askBtn");
+const topK = document.getElementById("topK");
+
+function addMessage(role, html, sources){
+  emptyState.remove();
+  const wrap = document.createElement("div");
+  wrap.className = "msg " + role;
+  const roleLabel = role === "user" ? "You" : "Answer";
+  wrap.innerHTML = `<div class="role">${roleLabel}</div><div class="bubble">${html}</div>`;
+  if(sources && sources.length){
+    const s = document.createElement("div");
+    s.className = "sources";
+    s.innerHTML = sources.map(x=>`<span class="source-chip">📄 ${escapeHtml(x)}</span>`).join("");
+    wrap.appendChild(s);
+  }
+  chatScroll.appendChild(wrap);
+  chatScroll.scrollTop = chatScroll.scrollHeight;
+  return wrap;
+}
+
+async function ask(){
+  const q = questionInput.value.trim();
+  if(!q) return;
+  addMessage("user", escapeHtml(q));
+  questionInput.value = "";
+  askBtn.disabled = true;
+
+  const thinking = addMessage("assistant", `<span class="typing"><span></span><span></span><span></span></span>`);
+
+  try{
+    const result = await api("/api/query", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ question: q, top_k: Number(topK.value) || 5 })
+    });
+    thinking.querySelector(".bubble").innerHTML = escapeHtml(result.answer).replace(/\n/g,"<br/>");
+    if(result.sources && result.sources.length){
+      const s = document.createElement("div");
+      s.className = "sources";
+      s.innerHTML = result.sources.map(x=>`<span class="source-chip">📄 ${escapeHtml(x)}</span>`).join("");
+      thinking.appendChild(s);
+    }
+  }catch(e){
+    thinking.querySelector(".bubble").innerHTML = `<span style="color:var(--red)">Error: ${escapeHtml(e.message)}</span>`;
+  }finally{
+    askBtn.disabled = false;
+    chatScroll.scrollTop = chatScroll.scrollHeight;
+  }
+}
+askBtn.addEventListener("click", ask);
+questionInput.addEventListener("keydown", e=>{ if(e.key === "Enter") ask(); });
+
+/* ---------- boot ---------- */
+resetPipeline();
+refreshHealth();
+refreshStats();
+setInterval(refreshHealth, 15000);
+setInterval(refreshStats, 20000);
+</script>
+</body>
+</html>
