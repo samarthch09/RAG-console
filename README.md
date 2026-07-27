@@ -218,6 +218,4 @@ Tests mock `QdrantClient` and the embedding calls so the suite runs without any 
 
 ---
 
-## License
 
-MIT — see [LICENSE](LICENSE).
